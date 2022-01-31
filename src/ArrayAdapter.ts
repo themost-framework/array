@@ -1,0 +1,7 @@
+class ArrayAdapter {
+
+}
+
+export {
+    ArrayAdapter
+}

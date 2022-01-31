@@ -1,0 +1,18 @@
+# test
+spec
+src/*.spec.ts
+tsconfig.spec.json
+
+# build
+rollup.config.js
+tsconfig.json
+jsconfig.json
+
+# dev
+.theia
+.vscode
+.idea
+.DS_Store
+
+# lint
+tslint.json
