@@ -40,7 +40,7 @@ class ArrayFormatter extends SqlFormatter {
     }
 
     escape(value: any, unquoted?: boolean): any {
-        return super.escape(value, unquoted);
+        return super.escape(value, true);
     }
 
     escapeName(name: string): any {
@@ -145,51 +145,166 @@ class ArrayFormatter extends SqlFormatter {
         }
     }
 
+    formatWhere(expr: any): any {
+        if (expr != null) {
+            const property = getOwnPropertyName(expr);
+            if (typeof this[property] === 'function') {
+                const exprFunc = this[property];
+                return exprFunc.apply(this, [].concat(expr[property]));
+            } else {
+                return this.$eq.apply(this, [].concat(
+                    new QueryField(property),
+                    expr[property]
+                ));
+            }
+        }
+        return (item: any) => {
+            return true;
+        }
+    }
+
+    $and(p0:any, p1:any): any {
+        const property = getOwnPropertyName(p0);
+        const value0 = (typeof this[property] === 'undefined') ? {
+            $eq: [
+                property,
+                p0[property]
+            ]
+        } : p0;
+        const property1 = getOwnPropertyName(p1);
+        const value1 = (typeof this[property1] === 'undefined') ? {
+            $eq: [
+                property1,
+                p1[property1]
+            ]
+        } : p1;
+        return (item: any) => {
+            const finalValue1: any = mapValue(this.formatWhere(value0), item);
+            const finalValue2: any = mapValue(this.formatWhere(value1), item);
+            return finalValue1 && finalValue2;
+        }
+    }
+
+    $or(p0:any, p1:any): any {
+        const property = getOwnPropertyName(p0);
+        const value0 = (typeof this[property] === 'undefined') ? {
+            $eq: [
+                property,
+                p0[property]
+            ]
+        } : p0;
+        const property1 = getOwnPropertyName(p1);
+        const value1 = (typeof this[property1] === 'undefined') ? {
+            $eq: [
+                property1,
+                p1[property1]
+            ]
+        } : p1;
+        return (item: any) => {
+            const finalValue1: any = mapValue(this.formatWhere(value0), item);
+            const finalValue2: any = mapValue(this.formatWhere(value1), item);
+            return finalValue1 || finalValue2;
+        }
+    }
+
+    $eq(p0:any, p1:any): any {
+        return (item: any) => {
+            const value1: any = mapValue(this.escapeName(p0), item);
+            const value2: any = mapValue(this.escape(p1), item);
+            return value1 === value2;
+        }
+    }
+
+    $ne(p0:any, p1:any): any {
+        return (item: any) => {
+            const value1: any = mapValue(this.escapeName(p0), item);
+            const value2: any = mapValue(this.escape(p1), item);
+            // tslint:disable-next-line: triple-equals
+            return value1 != value2;
+        }
+    }
+
+    $gt(p0:any, p1:any): any {
+        return (item: any) => {
+            const value1: any = mapValue(this.escapeName(p0), item);
+            const value2: any = mapValue(this.escape(p1), item);
+            // tslint:disable-next-line: triple-equals
+            return value1 > value2;
+        }
+    }
+
+    $gte(p0:any, p1:any): any {
+        return (item: any) => {
+            const value1: any = mapValue(this.escapeName(p0), item);
+            const value2: any = mapValue(this.escape(p1), item);
+            // tslint:disable-next-line: triple-equals
+            return value1 >= value2;
+        }
+    }
+
+    $lt(p0:any, p1:any): any {
+        return (item: any) => {
+            const value1: any = mapValue(this.escapeName(p0), item);
+            const value2: any = mapValue(this.escape(p1), item);
+            // tslint:disable-next-line: triple-equals
+            return value1 < value2;
+        }
+    }
+
+    $lte(p0:any, p1:any): any {
+        return (item: any) => {
+            const value1: any = mapValue(this.escapeName(p0), item);
+            const value2: any = mapValue(this.escape(p1), item);
+            // tslint:disable-next-line: triple-equals
+            return value1 <= value2;
+        }
+    }
+
     $length(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value && String(value).length;
         }
     }
 
     $substr(p0: any, pos: number, length?: number): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value && String(value).substr(pos, length);
         }
     }
 
     $substring(p0: any, pos: number, length?: number): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value && String(value).substring(pos, length);
         }
     }
 
     $trim(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value && String(value).trim();
         }
     }
 
     $tolower(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value && String(value).toLocaleLowerCase();
         }
     }
 
     $toupper(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value && String(value).toLocaleUpperCase();
         }
     }
 
     $startswith(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).startsWith(String(value2));
         }
@@ -197,7 +312,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $endswith(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).endsWith(String(value2));
         }
@@ -205,7 +320,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $concat(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).concat(String(value2));
         }
@@ -213,7 +328,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $indexof(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).indexOf(String(value2));
         }
@@ -221,7 +336,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $contains(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return (String(value1).indexOf(String(value2)) >= 0);
         }
@@ -229,7 +344,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $text(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return (String(value1).match(String(value2)) != null);
         }
@@ -237,7 +352,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $day(p0:any): any {
         return (item: any) => {
-            const result: any = this.escape(p0);
+            const result: any = this.escapeName(p0);
             const value: any = (typeof result === 'function') ? result(item) : result;
             return value instanceof Date && value.getDate();
         }
@@ -245,77 +360,77 @@ class ArrayFormatter extends SqlFormatter {
 
     $dayOfMonth(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && value.getDate();
         }
     }
 
     $month(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && value.getMonth() + 1;
         }
     }
 
     $year(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && value.getFullYear();
         }
     }
 
     $hour(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && value.getHours();
         }
     }
 
     $minute(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && value.getMinutes();
         }
     }
 
     $second(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && value.getSeconds();
         }
     }
 
     $date(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return value instanceof Date && new Date(value.getFullYear(), value.getMonth(), value.getDate());
         }
     }
 
     $round(p0:any, precision?: any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return round(value, precision);
         }
     }
 
     $floor(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return Math.floor(value,);
         }
     }
 
     $ceiling(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escape(p0), item);
+            const value: any = mapValue(this.escapeName(p0), item);
             return Math.ceil(value,);
         }
     }
 
     $add(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 + value2;
         }
@@ -323,7 +438,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $subtract(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 - value2;
         }
@@ -335,7 +450,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $multiply(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 * value2;
         }
@@ -347,7 +462,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $divide(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 * value2;
         }
@@ -359,7 +474,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $mod(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 % value2;
         }
@@ -367,7 +482,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $bit(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escape(p0), item);
+            const value1: any = mapValue(this.escapeName(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: no-bitwise
             return value1 & value2;
