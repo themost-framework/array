@@ -1,4 +1,4 @@
-import { QueryExpression, QueryField, SqlFormatter } from '@themost/query';
+import { QueryExpression, QueryField, SqlFormatter, SqlUtils } from '@themost/query';
 import { pick, at } from 'lodash';
 
 function getOwnPropertyName(obj: any) {
@@ -40,6 +40,38 @@ class ArrayFormatter extends SqlFormatter {
     }
 
     escape(value: any, unquoted?: boolean): any {
+        if (typeof value === 'object') {
+            if (value instanceof Date) {
+                return SqlUtils.escape(value);
+            }
+            if (Object.prototype.hasOwnProperty.call(value, '$name')) {
+                return this.escapeName(value.$name);
+            }
+            else if (Object.prototype.hasOwnProperty.call(value, '$value')) {
+                return this.escape(value.$value);
+            }
+            let keys = Object.keys(value)
+            const key0 = keys[0];
+            if (typeof key0 === 'string' && /^\$/.test(key0) && typeof this[key0] === 'function') {
+                let exprFunc = this[key0];
+                let args: any;
+                // if function has an array of arguments e.g.
+                // title.startsWith('Introduction')
+                // { $startWith: [{ $name : "title" }, 'Introduction'] }
+                if (Array.isArray(value[key0])) {
+                    args = value[key0];
+                } else {
+                    args = keys.map((x) => {
+                        return value[x];
+                    });
+                }
+                return exprFunc.apply(this, args);
+            } else if (keys.length === 1) {
+                // backward compatibility for simple equal expression
+                // e.g. { "category": "Laptops" }
+                return this.$eq(new QueryField(key0), value[key0]);
+            }
+        }
         return super.escape(value, true);
     }
 
@@ -152,6 +184,25 @@ class ArrayFormatter extends SqlFormatter {
                 const exprFunc = this[property];
                 return exprFunc.apply(this, [].concat(expr[property]));
             } else {
+                const value = expr[property]
+                const valueProperty = getOwnPropertyName(value);
+                if (valueProperty && valueProperty.startsWith('$')) {
+                    const valueFunc =this[valueProperty];
+                    if (typeof valueFunc === 'function') {
+                        const left = {};
+                        Object.defineProperty(left, valueProperty, {
+                            configurable: true,
+                            enumerable: true,
+                            value: [
+                                new QueryField(property)
+                            ]
+                        });
+                        return this.$eq.apply(this, [].concat(
+                            left,
+                            value[valueProperty]
+                        ));
+                    }
+                }
                 return this.$eq.apply(this, [].concat(
                     new QueryField(property),
                     expr[property]
@@ -164,52 +215,24 @@ class ArrayFormatter extends SqlFormatter {
     }
 
     $and(p0:any, p1:any): any {
-        const property = getOwnPropertyName(p0);
-        const value0 = (typeof this[property] === 'undefined') ? {
-            $eq: [
-                property,
-                p0[property]
-            ]
-        } : p0;
-        const property1 = getOwnPropertyName(p1);
-        const value1 = (typeof this[property1] === 'undefined') ? {
-            $eq: [
-                property1,
-                p1[property1]
-            ]
-        } : p1;
         return (item: any) => {
-            const finalValue1: any = mapValue(this.formatWhere(value0), item);
-            const finalValue2: any = mapValue(this.formatWhere(value1), item);
+            const finalValue1: any = mapValue(this.formatWhere(p0), item);
+            const finalValue2: any = mapValue(this.formatWhere(p1), item);
             return finalValue1 && finalValue2;
         }
     }
 
     $or(p0:any, p1:any): any {
-        const property = getOwnPropertyName(p0);
-        const value0 = (typeof this[property] === 'undefined') ? {
-            $eq: [
-                property,
-                p0[property]
-            ]
-        } : p0;
-        const property1 = getOwnPropertyName(p1);
-        const value1 = (typeof this[property1] === 'undefined') ? {
-            $eq: [
-                property1,
-                p1[property1]
-            ]
-        } : p1;
         return (item: any) => {
-            const finalValue1: any = mapValue(this.formatWhere(value0), item);
-            const finalValue2: any = mapValue(this.formatWhere(value1), item);
+            const finalValue1: any = mapValue(this.formatWhere(p0), item);
+            const finalValue2: any = mapValue(this.formatWhere(p1), item);
             return finalValue1 || finalValue2;
         }
     }
 
     $eq(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 === value2;
         }
@@ -217,7 +240,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $ne(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: triple-equals
             return value1 != value2;
@@ -226,7 +249,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $gt(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: triple-equals
             return value1 > value2;
@@ -235,7 +258,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $gte(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: triple-equals
             return value1 >= value2;
@@ -244,7 +267,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $lt(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: triple-equals
             return value1 < value2;
@@ -253,7 +276,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $lte(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: triple-equals
             return value1 <= value2;
@@ -262,49 +285,49 @@ class ArrayFormatter extends SqlFormatter {
 
     $length(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value && String(value).length;
         }
     }
 
     $substr(p0: any, pos: number, length?: number): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value && String(value).substr(pos, length);
         }
     }
 
     $substring(p0: any, pos: number, length?: number): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value && String(value).substring(pos, length);
         }
     }
 
     $trim(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value && String(value).trim();
         }
     }
 
     $tolower(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value && String(value).toLocaleLowerCase();
         }
     }
 
     $toupper(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value && String(value).toLocaleUpperCase();
         }
     }
 
     $startswith(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).startsWith(String(value2));
         }
@@ -312,7 +335,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $endswith(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).endsWith(String(value2));
         }
@@ -320,7 +343,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $concat(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).concat(String(value2));
         }
@@ -328,7 +351,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $indexof(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return String(value1).indexOf(String(value2));
         }
@@ -336,7 +359,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $contains(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return (String(value1).indexOf(String(value2)) >= 0);
         }
@@ -344,7 +367,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $text(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return (String(value1).match(String(value2)) != null);
         }
@@ -352,7 +375,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $day(p0:any): any {
         return (item: any) => {
-            const result: any = this.escapeName(p0);
+            const result: any = this.escape(p0);
             const value: any = (typeof result === 'function') ? result(item) : result;
             return value instanceof Date && value.getDate();
         }
@@ -360,77 +383,77 @@ class ArrayFormatter extends SqlFormatter {
 
     $dayOfMonth(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && value.getDate();
         }
     }
 
     $month(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && value.getMonth() + 1;
         }
     }
 
     $year(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && value.getFullYear();
         }
     }
 
     $hour(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && value.getHours();
         }
     }
 
     $minute(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && value.getMinutes();
         }
     }
 
     $second(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && value.getSeconds();
         }
     }
 
     $date(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return value instanceof Date && new Date(value.getFullYear(), value.getMonth(), value.getDate());
         }
     }
 
     $round(p0:any, precision?: any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return round(value, precision);
         }
     }
 
     $floor(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return Math.floor(value,);
         }
     }
 
     $ceiling(p0:any): any {
         return (item: any) => {
-            const value: any = mapValue(this.escapeName(p0), item);
+            const value: any = mapValue(this.escape(p0), item);
             return Math.ceil(value,);
         }
     }
 
     $add(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 + value2;
         }
@@ -438,7 +461,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $subtract(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 - value2;
         }
@@ -450,7 +473,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $multiply(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 * value2;
         }
@@ -462,7 +485,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $divide(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 * value2;
         }
@@ -474,7 +497,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $mod(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             return value1 % value2;
         }
@@ -482,7 +505,7 @@ class ArrayFormatter extends SqlFormatter {
 
     $bit(p0:any, p1:any): any {
         return (item: any) => {
-            const value1: any = mapValue(this.escapeName(p0), item);
+            const value1: any = mapValue(this.escape(p0), item);
             const value2: any = mapValue(this.escape(p1), item);
             // tslint:disable-next-line: no-bitwise
             return value1 & value2;
