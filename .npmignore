@@ -8,6 +8,9 @@ rollup.config.js
 tsconfig.json
 jsconfig.json
 
+# gitpod
+.gitpod.yml
+
 # dev
 .theia
 .vscode

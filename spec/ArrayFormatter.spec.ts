@@ -1,7 +1,8 @@
-import { QueryExpression, QueryField, QueryUtils } from '@themost/query';
+import { QueryExpression, QueryField, QueryUtils, OpenDataParser } from '@themost/query';
 import { ArrayFormatter } from '@themost/array';
 import { PRODUCTS } from './data/Products';
 import { ORDERS } from './data/Orders';
+import { parse } from 'path';
 describe('ArrayFormatter', () => {
     it('should format select', async () => {
         const q = new QueryExpression().select('id', 'name').from('Products');
@@ -126,13 +127,15 @@ describe('ArrayFormatter', () => {
         }
     });
 
-    it('should use date functions', async () => {
-        let q = new QueryExpression()
-            .select('id', 'orderDate').from('Products')
-            .where(QueryField.year('orderDate')).equal(1997);
+    it('should use indexof()', async () => {
+
+        const parser = new OpenDataParser();
+        const where = await parser.parseAsync('indexof(name, \'Northwoods\') ge 0');
+        let q = new QueryExpression().select('id', 'name').from('Products');
+        q.injectWhere(where)
         const formatter = new ArrayFormatter();
-        const select: (item: any) => any = formatter.formatSelect(q);
         const filter: (item: any) => any = formatter.formatWhere(q.$where);
+        const select: (item: any) => any = formatter.formatSelect(q);
         const items = PRODUCTS.filter((item: any) => {
             return filter(item);
         }).map((item) => {
@@ -141,7 +144,7 @@ describe('ArrayFormatter', () => {
         expect(items).toBeTruthy();
         expect(items.length).toBeGreaterThan(0);
         for (const item of items) {
-            expect(item.orderDate.getFullYear()).toEqual(1997);
+            expect(item.name.indexOf('Northwoods')).toBeGreaterThanOrEqual(0);
         }
     });
 
